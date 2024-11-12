@@ -1,0 +1,34 @@
+<!-- views/index.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home</title>
+</head>
+<body>
+    <h1>Welcome to the MVC Application</h1>
+    <a href="/users">View Users</a>
+
+
+    <h2>User List</h2>
+    <ul>
+        <% userDetails.forEach(function(user) { %>
+            <li>
+                <h3><%= user.username %></h3>
+                <p>Email: <%= user.email %></p>
+                <% if (user.profilePic) { %>
+                    <p>Profile Picture Filename: <%= user.profilePic %></p> <!-- Debugging -->
+                    <img src="/<%= user.profilePic %>" alt="<%= user.username %>'s Profile Picture" width="100" height="100">
+                <% } else { %>
+                    <p>No Profile Picture Available</p>
+                <% } %>
+            </li>
+        <% }); %>
+    </ul>
+    
+    
+    <a href="/users">View Users</a>
+    
+</body>
+</html>
