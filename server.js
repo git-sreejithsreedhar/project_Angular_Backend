@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const userRoutes = require('./routes/userRoutes'); 
+const path = require('path');
+const multer = require('multer');
 
 const User = require('./models/userModel')
 const UserDetails = require('./models/userDetails')
@@ -14,11 +16,12 @@ require('dotenv').config();
 
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+
 const authenticateToken = require('./middlewares/auth');
+const adminAuthentication = require('./middlewares/adminAuth')
 
 // adminAuth
 const { generateAccessToken, generateRefreshToken } = require('./services/tokenService');
-// const adminAuthentication = require('./middlewares/adminAuth')
 
 
 const SECRET_KEY = process.env.JWT_SECRET || '00000'; 
@@ -36,25 +39,23 @@ mongoose.connect('mongodb://localhost:27017/Angular_1', {
 
 
 
-const multer = require('multer');
-const path = require('path');
-const { render } = require('ejs');
-const { NOTFOUND } = require('dns');
-
-
-
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/'); 
+const storage = multer.diskStorage({ 
+    destination:(req, file, cb) => {
+        // cb(null, '/uploads');  
+        cb(null, 'uploads/')
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+        // cb(null, file.originalname)
     }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
+// const upload = multer({ 
+//     storage: storage, 
+//     limits: { fileSize: 10 * 1024 * 1024 }  // Optional: limit the file size to 10MB
+//   });
 
 
 // Serve static files from the 'uploads' directory
@@ -79,6 +80,8 @@ app.use(express.static('public'));
 
 // Routes
 app.use('/users', userRoutes); 
+
+  
 
 // Home route
 app.get('/', async (req, res) => {
@@ -168,36 +171,36 @@ app.post('/user/login', async (req, res) => {
 
 
 // user file upload-----------------------------------
-app.post('/user/fileData', authenticateToken, upload.single('file'), async (req, res) => {
-    // app.post('/user/fileData', upload.single('file'), async (req, res) => {
+app.post('/user/fileData', upload.single('file'), async (req, res) => {
     try {
-        if (!req.file) {
+            const img = req.file
+        if (!img) {
             return res.status(400).json({ message: "No file found" });
         }
 
-        const userId = req.body.userId; 
+        const userId = req.body.userId;
         if (!userId) {
-            return res.status(400).json({ message: "User ID is required" });                                                                                                            
+            return res.status(400).json({ message: "User ID is required" });
         }
 
         let userDetails = await UserDetails.findOne({ userId });
 
         if (!userDetails) {
             userDetails = new UserDetails({
-                userId, 
-                profilePic: req.file.path 
+                userId,
+                profilePic: img.path
             });
-            await userDetails.save(); 
+            await userDetails.save();
+
             return res.status(201).json({
                 message: "Profile picture uploaded and user details created successfully",
                 profilePic: userDetails.profilePic,
                 userId: userDetails.userId
             });
         } else {
-        
-            userDetails.profilePic = req.file.path; 
-            await userDetails.save(); 
-            
+            userDetails.profilePic = img.path;
+            await userDetails.save();
+
             return res.status(200).json({
                 message: "Profile picture uploaded successfully",
                 profilePic: userDetails.profilePic,
@@ -206,12 +209,14 @@ app.post('/user/fileData', authenticateToken, upload.single('file'), async (req,
         }
     } catch (error) {
         console.error(error);
+        return res.status(500).json({ message: "Internal server error" });
     }
-});
+
+})
 
 
 // get users data
-app.get('/users_data', async (req, res) => {
+app.get('/users_data', adminAuthentication, async (req, res) => {
     try {
         let header = req.headers.Authorization
         console.log(header)
@@ -236,6 +241,26 @@ app.get('/users_data', async (req, res) => {
     }
 });
 
+
+//admin remove user
+app.delete('/admin/removeUser', adminAuthentication, async (req, res) => {
+       try {
+        const { userId } = req.body;
+
+        const user = await User.findOneAndDelete({ _id: userId });
+        const userDetails = await UserDetails.findOneAndDelete({ userId: userId });
+
+        if (user || userDetails) {
+            return res.status(200).json({ message: 'Successfully removed user' });
+        } else {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+    } catch (error) {
+        console.error('Error while removing user:', error);
+        return res.status(500).json({ message: 'Failed to remove user', error });
+    }
+});
 
 
 // Admin login
@@ -264,8 +289,8 @@ app.post('/admin/login', async (req, res) => {
         const refreshtoken = generateRefreshToken(adminId);
 
         const newAdminToken = new AdminToken({
-            refreshToken: 'refreshtoken',
-            accessToken: 'accesstoken',
+            refreshToken: refreshtoken,
+            accessToken: accesstoken,
             accessTokenExpiry: new Date(Date.now() + 15 * 60 * 1000),
         });
         
@@ -277,24 +302,8 @@ app.post('/admin/login', async (req, res) => {
     }
 
 
-//admin remove user
-app.post('admin/removeUser', async (req, res) => {
-    try {
-        const { userId }= req.body;
-
-        const user = await User.findOneAndDelete(_id, userId)
-        const userDetails = await UserDetails.findOneAndDelete({userId, userId})
-
-        return res.status(200).json({message: 'successfully removed user'})
-
-    } catch (error){
-        console.log(error)
-    }
-})
-
 
 // refresh admin Token
-
 app.post('admin/token/refresh', async (req, res) => {
     const { refreshToken } = req.body;
 

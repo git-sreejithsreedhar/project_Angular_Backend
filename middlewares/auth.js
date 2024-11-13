@@ -1,12 +1,12 @@
 
 const jwt = require('jsonwebtoken');
-// require(dotenv).config();
+
 
 const SECRET_KEY = process.env.JWT_SECRET || 'your_secret_key'; 
 
 
-
 const authenticateToken = (req, res, next) => {
+    
     const authHeader = req.headers['authorization'];
     const token = authHeader?.split(' ')[1];  
 
@@ -17,12 +17,11 @@ const authenticateToken = (req, res, next) => {
             console.log('Token verification error:', err);  
             return res.sendStatus(403); 
         }
+        if (user) { console.log('aut', user)} //------------
         req.user = user;
         next(); 
     });
 };
-
-
 
 
 
